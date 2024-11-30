@@ -12,6 +12,8 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
+import plotly.graph_objs as go
 
 df = pd.read_csv ("C:/Pablo_offline/py/NTGS_geochem/checked/656_0_2411228.csv", header=None)
 
@@ -186,9 +188,9 @@ plt.show()
 
 # %% Function 
 
-def wide_long_clean_blk (df):
+def wide_long_clean_blk (df0):
     # This function takes a raw Intertek csv file and returns it in clean and in long format
-        
+    df = df0
     # Extract metadata
     elements_row = df.iloc[0].dropna().values.tolist()[1:]
     units_row = df.iloc[1].dropna().values.tolist()[1:]
@@ -363,88 +365,155 @@ def wide_long_clean_dup (df):
 
 df_dup = wide_long_clean_dup(df)
 
+## Duplicate list
 
-def duplicates_px(df, dup_list):
-    ''' This function takes a clean df, and a list of samples. It returns a series of plots of duplicates'''
+def dup_list (df_d):
+    duplicate_list = list(df_d["Sample"].unique())
+    return duplicate_list
     
+dup_list = dup_list(df_dup)
+
+
+def duplicates_px(df_all, dup_list):
+    """
+    This function takes a clean df and a list of samples. 
+    It returns a series of scatter plots for duplicates with error thresholds 
+    and a report highlighting elements outside the threshold.
+    """
+
     plots = []  # List to store Plotly figures
     report_data = []  # List to store report information
-    
-    # Filter df to include only samples in dup_list
-    df_dup = df[df['SampleID'].isin(dup_list)]
-    
-    # Iterate through the list of duplicates and plot
-    for sample in dup_list:
-        df_i = df_dup[df_dup['SampleID'] == sample].dropna(axis=1)
-        
-        x = df_i.iloc[[0], 2:]
-        y = df_i.iloc[[1], 2:]
-        
-        original = x.values.flatten()
-        duplicate = y.values.flatten()
-        
-        element_list = x.columns.tolist()
-        
-        # Create a Plotly figure
-        fig = go.Figure()
-        
-        # Scatter plot of original vs duplicate measurements
-        fig.add_trace(go.Scatter(x=original, y=duplicate, mode='markers', marker=dict(color='blue'), name='Duplicate vs Original'))
-        
-        # 1:1 line
-        fig.add_trace(go.Scatter(x=original, y=original, mode='lines', line=dict(color='gray', dash='dash'), name='1:1 line'))
-        
-        # ±25% error threshold lines
-        error_threshold = 0.15  # 15% error threshold
-        upper_threshold = [(1 + error_threshold) * x for x in original]
-        lower_threshold = [(1 - error_threshold) * x for x in original]
-        
-        fig.add_trace(go.Scatter(x=original, y=upper_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
-        fig.add_trace(go.Scatter(x=original, y=lower_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
-        
-        # Highlight dots outside the threshold in red
-        outside_threshold = (duplicate > upper_threshold) | (duplicate < lower_threshold)
-        fig.add_trace(go.Scatter(x=original[outside_threshold], y=duplicate[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
-        
-        # Layout customization
-        fig.update_layout(title=f'Scatter Plot of Duplicate vs Original Measurements for {sample}',
-                          xaxis_title='Original Measurements',
-                          yaxis_title='Duplicate Measurements',
-                          xaxis_tickangle=-45,
-                          showlegend=True,
-                          legend=dict(x=1.02, y=1.0, bgcolor='rgba(255, 255, 255, 0)', bordercolor='rgba(255, 255, 255, 0)'),
-                          margin=dict(l=0, r=0, t=50, b=0),
-                          hovermode='closest')
-        # Update x and y axes to logarithmic scale
-        fig.update_xaxes(type='log')
-        fig.update_yaxes(type='log')
-        
-        # Update x-axis tick labels
-        fig.update_xaxes(tickvals=original, ticktext=element_list)
 
-        # Create report
-        elements_outside = [element_list[i] for i in range(len(element_list)) if outside_threshold[i]]
-        report = f'Elements outside the ±15% error threshold: {elements_outside}'
-        
-        # Store report in report_data
-        report_data.append((sample, elements_outside))
-        
-        # Add report as annotation
-        fig.add_annotation(
-            x=0.5,
-            y=-0.25,
-            text=report,
-            showarrow=False,
-            font=dict(size=10),
-            align='center',
-            xref='paper',
-            yref='paper'
+    # Filter df to include only samples in dup_list
+    df_dupl = df_all[df_all['Sample'].isin(dup_list)]
+
+    for sample in dup_list:
+        # Filter data for the specific sample
+        df_i = df_dupl[df_dupl['Sample'] == sample]
+
+        # Separate original and duplicate types
+        df_sample = df_i[df_i['Type'] == 'sample']
+        df_duplicate = df_i[df_i['Type'] == 'dup']
+
+        # Convert 'Value' to numeric and align indices
+        x = pd.to_numeric(df_sample['Value'], errors='coerce').reset_index(drop=True)
+        y = pd.to_numeric(df_duplicate['Value'], errors='coerce').reset_index(drop=True)
+        element_list = df_sample['Element'].reset_index(drop=True)
+
+        # Create a boolean mask for positive values
+        mask = (x > 0) & (y > 0)
+
+        # Apply the mask
+        x = x[mask].values
+        y = y[mask].values
+        element_list = element_list[mask].values
+
+        # Define thresholds
+        error_threshold = 0.15
+        upper_threshold = (1 + error_threshold) * x
+        lower_threshold = (1 - error_threshold) * x
+
+        # Create scatter plot
+        fig = go.Figure()
+
+        # Original vs duplicate scatter
+        fig.add_trace(go.Scatter(x=x, y=y, mode='markers', marker=dict(color='blue'), name='Duplicate vs Original'))
+
+        # 1:1 line
+        fig.add_trace(go.Scatter(x=x, y=x, mode='lines', line=dict(color='gray', dash='dash'), name='1:1 line'))
+
+        # ±15% threshold bands
+        fig.add_trace(go.Scatter(x=x, y=upper_threshold, mode='lines', line=dict(color='lightgray', width=0), name='+15% Threshold'))
+        fig.add_trace(go.Scatter(x=x, y=lower_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
+
+        # Points outside the threshold
+        outside_threshold = (y > upper_threshold) | (y < lower_threshold)
+        fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
+
+        # Layout adjustments
+        fig.update_layout(
+            title=f'Scatter Plot of Duplicate vs Original for {sample}',
+            xaxis=dict(title='Original Measurements', type='log'),
+            yaxis=dict(title='Duplicate Measurements', type='log'),
+            legend=dict(x=1.02, y=1, bgcolor='rgba(255, 255, 255, 0)', bordercolor='rgba(255, 255, 255, 0)'),
+            margin=dict(l=40, r=40, t=40, b=40),
+            hovermode='closest'
         )
-        
-        # Append the figure to the list
+
+        # Add element labels as tick texts
+        fig.update_xaxes(tickvals=x, ticktext=element_list)
+
+        # Generate report for outliers
+        elements_outside = element_list[outside_threshold]
+        report_data.append((sample, list(elements_outside)))
+
+        # Append figure to the list
         plots.append(fig)
-        
-    # Convert report_data to a DataFrame
-    report_df = pd.DataFrame(report_data, columns=['SampleID', 'Elements outside the ±15% error threshold'])
+
+    # Convert report data into a DataFrame
+    report_df = pd.DataFrame(report_data, columns=['SampleID', 'Elements outside the ±15% threshold'])
+
+    return plots, report_df
+
+
+
+
+# %% Function to convert df0 into long format
+
+def wide_long_clean_all(df):
+    # Create an empty list to store the individual DataFrames
+    df_list = []
     
-    return plots, report_df  # Return list of Plotly figures and report data frame
+    # Define the sample types you want to process
+    sample_types = ['sample', 'std', 'dup']
+    
+    for sample_type in sample_types:
+        # Extract metadata
+        elements_row = df.iloc[0].dropna().values.tolist()[1:]
+        units_row = df.iloc[1].dropna().values.tolist()[1:]
+        detection_row = df.iloc[2].dropna().values.tolist()[1:]
+        method_row = df.iloc[3].dropna().values.tolist()[1:]
+        
+        # Find the indices of the start and end values based on sample type
+        if sample_type == 'sample':
+            sample_ini = df.index[df[0] == 'SAMPLE NUMBERS'][0] + 1
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            df_s = df.loc[sample_ini:sample_end]
+        elif sample_type == 'std':
+            sample_ini = df.index[df[0] == 'SAMPLE NUMBERS'][0] + 1
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            df_s = df.loc[sample_ini:sample_end]
+        elif sample_type == 'dup':
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            dup_ini = sample_end + 3
+            dup_end = df.index[df[0] == 'STANDARDS'][0] - 2
+            df_s = df.loc[dup_ini:dup_end]
+        
+        # Add column names to df_s
+        columns = ["Sample"] + elements_row
+        df_s.columns = columns 
+        
+        # Convert to long format
+        df_long = pd.melt(df_s, id_vars=["Sample"], var_name="Element", value_name="Value")
+        
+        # Add metadata to the long format
+        df_long["Unit"] = df_long["Element"].map(dict(zip(elements_row, units_row)))
+        df_long["Detection_Limit"] = df_long["Element"].map(dict(zip(elements_row, detection_row)))
+        df_long["Method"] = df_long["Element"].map(dict(zip(elements_row, method_row)))
+        
+        # Add a column with the sample type
+        df_long.insert(0, 'Type', sample_type)
+        
+        # For 'std' (standards), filter specific samples
+        if sample_type == 'std':
+            df_long = df_long[df_long['Sample'].str.contains(r'DW06LMG005|AS08JAW004|AS08JAW006', na=False)].dropna(axis=1, how='all')
+        
+        # Append the current DataFrame to the list
+        df_list.append(df_long)
+    
+    # Concatenate all DataFrames in the list into one DataFrame
+    df_all = pd.concat(df_list, ignore_index=True)
+    
+    return df_all
+
+df_all = wide_long_clean_all(df)
