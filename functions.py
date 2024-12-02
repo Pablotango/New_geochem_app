@@ -79,7 +79,7 @@ merged_df.to_csv(output_file, index=False)
 
 print(f"All files have been processed and merged. The output is saved to {output_file}.")
 
-## No I want to see all elements analysed in each standard
+## Now I want to see all elements analysed in each standard
 
 NTGS_Standards = ['AS08JAW004','AS08JAW006', 'DW06LMG005']
 
@@ -110,14 +110,20 @@ print(f"All NTGS Standard values are saved to {output_file_std}.")
 # Choose the elements
 
 oxides = ['BaO', 'CaO', 'Cr2O3','FeO', 'Fe2O3', 'K2O', 'MgO', 'MnO', 'Na2O', 'P2O5', 'SiO2' ]
-REE =    coeff_dict = ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+REE = ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+
+all_elements = list(all_NTGS_Standards.Element.unique())
+delete_elements = ['WTTOT', 'Moisture105', 'Total', 'LOI-1000', 'C-Acinsol', 'C-CO3', 'LOI', 'Cl', 'Mn','P','Al','Ca','Fe','K','Mg','Mn','Na','Si','Ti']
+all_elements = [item for item in all_elements if item not in delete_elements]
+all_elements = ['Au', 'Ag', 'Al2O3', 'As', 'Ba', 'Be', 'Bi', 'CaO', 'Cd', 'Ce', 'Co', 'Cr', 'Cs', 'Cu', 'Dy', 'Er', 'Eu', 'F', 'Fe2O3', 'Ga', 'Gd', 'Ge', 'Hf', 'Ho', 'In', 'K2O', 'La', 'Lu', 'MgO', 'MnO', 'Mo', 'Na2O', 'Nb', 'Nd', 'Ni', 'P2O5', 'Pb', 'Pd', 'Pr', 'Pt', 'Rb', 'Re', 'S', 'Sb', 'Sc', 'Se', 'SiO2', 'Sm', 'Sn', 'Sr', 'Ta', 'Tb', 'Te', 'Th', 'TiO2', 'Tl', 'Tm', 'U', 'V', 'W', 'Y', 'Yb', 'Zn', 'Zr', 'BaO', 'C', 'Cr2O3', 'FeO', 'SO3', 'Li']
 
 
 all_NTGS_Standards_o = all_NTGS_Standards[all_NTGS_Standards["Element"].isin(oxides)]
 all_NTGS_Standards_ree = all_NTGS_Standards[all_NTGS_Standards["Element"].isin(REE)]
+all_NTGS_Standards_all = all_NTGS_Standards[all_NTGS_Standards["Element"].isin(all_elements)]
 
 # Major OXIDES: Group by 'Sample' and calculate statistics for 'Value'
-stats = all_NTGS_Standards_o.groupby(["Sample", "Element"])["Value"].agg(
+stats = all_NTGS_Standards_all.groupby(["Sample", "Element", "Unit"])["Value"].agg(
     count="count",
     mean="mean",
     std="std",
@@ -128,31 +134,25 @@ stats = all_NTGS_Standards_o.groupby(["Sample", "Element"])["Value"].agg(
 # Reset the index for better readability (optional)
 stats.reset_index(inplace=True)
 
-# Display the statistics
-print(stats)
-
-# REE: Group by 'Sample' and calculate statistics for 'Value'
-stats = all_NTGS_Standards_ree.groupby(["Sample", "Element"])["Value"].agg(
-    count="count",
-    mean="mean",
-    std="std",
-    min="min",
-    max="max",
-    sum="sum"
-)
-
 # Reset the index for better readability (optional)
 stats.reset_index(inplace=True)
 
 # Display the statistics
 print(stats)
+
+# Save the stats as pickle
+
+stats.to_pickle('stats.pkl')
+
+
+
 # %%
 # Plots
 
 ## Box plots for major oxides
 for sample in NTGS_Standards:
     # Select only sample i
-    df = all_NTGS_Standards_o.loc[all_NTGS_Standards_o["Sample"] == sample]
+    df = all_NTGS_Standards_all.loc[all_NTGS_Standards_all["Sample"] == sample]
     
     # Create the box plot using seaborn
     plt.figure(figsize=(10, 6))
@@ -244,7 +244,7 @@ def report_blk (df_blk):
     
     print (f'The following elements have values > detection limit. Please check : {elem_out_list}')
     
-    print (df_blk)
+    return df_blk
     
 
 report_blk(df_blk)
