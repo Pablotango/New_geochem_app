@@ -14,10 +14,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objs as go
+import pickle
 
-df = pd.read_csv ("C:/Pablo_offline/py/NTGS_geochem/checked/656_0_2411228.csv", header=None)
+
 
 # %% Capture all NTGS reference values for future analysis
+
 
 def wide_to_long (df):
     
@@ -48,6 +50,7 @@ def wide_to_long (df):
     df_long["Method"] = df_long["Element"].map(dict(zip(elements_row, method_row)))
     
     return (df_long)
+
 
 
 # Folder containing the CSV files
@@ -105,7 +108,8 @@ all_NTGS_Standards.to_csv(output_file_std, index=False)
 
 print(f"All NTGS Standard values are saved to {output_file_std}.")
 
-# %% 
+
+# %% Stats
 
 # Choose the elements
 
@@ -144,29 +148,197 @@ print(stats)
 
 stats.to_pickle('stats.pkl')
 
+# retreive pickle as df
 
+# Specify the path to your pickle file
+file_path = 'C:/Pablo_offline/py/NTGS_geochem/stats.pkl'
+
+# Open and load the pickle file
+with open(file_path, 'rb') as file:
+    stats = pickle.load(file)
+    
+
+stats_dict = stats.to_dict(orient = 'list')
+print (stats_dict)
+
+
+# %% Get the new batch, make it long format and add a column of type (sample, std, dup)
+
+df = pd.read_csv ("C:/Pablo_offline/py/NTGS_geochem/checked/656_0_2411228.csv", header=None)
+
+def wide_long_clean_all(df0):
+    
+    df = df0
+    # Create an empty list to store the individual DataFrames
+    df_list = []
+    
+    # Define the sample types you want to process
+    sample_types = ['sample', 'std', 'dup']
+    
+    for sample_type in sample_types:
+        # Extract metadata
+        elements_row = df.iloc[0].dropna().values.tolist()[1:]
+        units_row = df.iloc[1].dropna().values.tolist()[1:]
+        detection_row = df.iloc[2].dropna().values.tolist()[1:]
+        method_row = df.iloc[3].dropna().values.tolist()[1:]
+        
+        # Find the indices of the start and end values based on sample type
+        if sample_type == 'sample':
+            sample_ini = df.index[df[0] == 'SAMPLE NUMBERS'][0] + 1
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            df_s = df.loc[sample_ini:sample_end]
+        elif sample_type == 'std':
+            sample_ini = df.index[df[0] == 'SAMPLE NUMBERS'][0] + 1
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            df_s = df.loc[sample_ini:sample_end]
+        elif sample_type == 'dup':
+            sample_end = df.index[df[0] == 'CHECKS'][0] - 2
+            dup_ini = sample_end + 3
+            dup_end = df.index[df[0] == 'STANDARDS'][0] - 2
+            df_s = df.loc[dup_ini:dup_end]
+        
+        # Add column names to df_s
+        columns = ["Sample"] + elements_row
+        df_s.columns = columns 
+        
+        # Convert to long format
+        df_long = pd.melt(df_s, id_vars=["Sample"], var_name="Element", value_name="Value")
+        
+        # Add metadata to the long format
+        df_long["Unit"] = df_long["Element"].map(dict(zip(elements_row, units_row)))
+        df_long["Detection_Limit"] = df_long["Element"].map(dict(zip(elements_row, detection_row)))
+        df_long["Method"] = df_long["Element"].map(dict(zip(elements_row, method_row)))
+        
+        # Add a column with the sample type
+        df_long.insert(0, 'Type', sample_type)
+        
+        # For 'std' (standards), filter specific samples
+        if sample_type == 'std':
+            df_long = df_long[df_long['Sample'].str.contains(r'DW06LMG005|AS08JAW004|AS08JAW006', na=False)].dropna(axis=1, how='all')
+        
+        # Convert 'Value' and 'Detection_Limit' columns to numeric
+        df_long["Value"] = pd.to_numeric(df_long["Value"], errors='coerce')
+        df_long["Detection_Limit"] = pd.to_numeric(df_long["Detection_Limit"], errors='coerce')
+        
+        # Append the current DataFrame to the list
+        df_list.append(df_long)
+    
+    # Concatenate all DataFrames in the list into one DataFrame
+    df_all = pd.concat(df_list, ignore_index=True)
+    
+    return df_all
+
+df_l = wide_long_clean_all(df)
+
+## Now filter only std
+
+df_l_s = df_l[df_l['Type'] == 'std']
+
+# Merge new batch with stats
+
+df_std = pd.merge(df_l_s, stats, on=['Sample', 'Element', 'Unit'], how='inner')
+
+batch_std = list(df_std['Sample'].unique())
+
+element_groups = [oxides, REE, all_elements]
 
 # %%
 # Plots
 
 ## Box plots for major oxides
-for sample in NTGS_Standards:
-    # Select only sample i
-    df = all_NTGS_Standards_all.loc[all_NTGS_Standards_all["Sample"] == sample]
+
+def plot_list(df_std):
     
-    # Create the box plot using seaborn
+    plots = []  # List to store Plotly figures
+    
+    for sample in batch_std:
+        # Select only sample i
+        df = df_std.loc[df_std["Sample"] == sample]
+        # Only selected elements
+        df = df[df["Element"].isin(element_groups)]
+        
+        # Create a Plotly figure
+        fig = go.Figure()
+
+        # Main line for 'Value'
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["Value"], 
+            mode='lines+markers', 
+            name='Value', 
+            line=dict(color='blue', width=2),
+            marker=dict(symbol='circle')
+        ))
+
+        # Shaded region for min and max
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["min"], 
+            fill=None, 
+            mode='lines', 
+            line=dict(color='blue', dash='dot'),
+            showlegend=False
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["max"], 
+            fill='tonexty', 
+            mode='lines', 
+            line=dict(color='blue', dash='dot'),
+            name='Min-max value',
+            fillcolor='rgba(0, 0, 255, 0.2)'
+        ))
+
+        # Adding labels and title
+        fig.update_layout(
+            title="Line Plot with Shaded Min and Max",
+            xaxis_title="Sample",
+            yaxis_title="Value",
+            template="plotly",
+            showlegend=True,
+            xaxis=dict(tickangle=45),
+            plot_bgcolor='white'
+        )
+        
+        # Append the figure to the list
+        plots.append(fig)
+        
+    return plots
+
+plot_list(df_std)
+
+
+for sample in batch_std:
+    # Select only sample i
+    df = df_std.loc[df_std["Sample"] == sample]
+    # Only selected elements
+    df = df[df["Element"].isin(REE)]
+    
+    x_values = range(len(df["Element"]))
+
+    # Plotting
     plt.figure(figsize=(10, 6))
-    sns.boxplot(x='Element', y='Value', data=df)
-    plt.yscale('log')
-
-    # Add title and labels
-    plt.title(f'Box Plot for major oxides - Sample {sample}')
-    plt.xlabel('Element')
-    plt.ylabel('Value')
-
-# Show the plot
+    
+    # Main line for 'Value'
+    plt.plot(x_values, df["Value"], label='Value', marker='o', color='blue', linewidth=2)
+    
+    # Shaded region for min and max
+    plt.fill_between(x_values, df["min"], df["max"], color='blue', alpha=0.2, label='Min-max value')
+    
+    # Adding labels and legend
+    plt.title("Line Plot with Shaded Min and Max", fontsize=14)
+    plt.xlabel("Sample", fontsize=12)
+    plt.ylabel("Value", fontsize=12)
+    plt.legend()
+    plt.grid(alpha=0.3)
+    
+    # Set x-ticks to correspond to sample labels
+    plt.xticks(x_values, df["Element"], rotation=45)
+    
+    # Display the plot
+    plt.tight_layout()
+    
 plt.show()
-
 
 ## Box plots for REE
 for sample in NTGS_Standards:
