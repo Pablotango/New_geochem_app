@@ -337,7 +337,7 @@ def NTGS_report(df_std):
     
     # Check if all values in 'test' are True
     if df_std['test'].all():
-        st.write('All values are within the expected range.')
+        st.write('### All values are within the expected range :)')
     else:
         st.write('These elements are outside the expected range, please check.')
 
@@ -420,12 +420,14 @@ with tabs[1]:
 
             # Check if element groups are selected
             if selected_group:
+                # run report
+                NTGS_report(df_std)
+                
                 plots = plot_list(df_std, batch_std, selected_group)
                 
                 for plot in plots:
                     st.plotly_chart(plot)  # Display each plot using Plotly
-                # run report
-                NTGS_report(df_std)
+                
             else:
                 st.write("No element group selected.")
             
