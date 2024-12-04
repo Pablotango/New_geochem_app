@@ -93,41 +93,6 @@ def wide_long_clean_all(df0):
     
     return df_all
 
-
-def wide_long_clean_dup (df0):
-    
-    df = df0
-    # Extract metadata
-    elements_row = df.iloc[0].dropna().values.tolist()[1:]
-    units_row = df.iloc[1].dropna().values.tolist()[1:]
-    detection_row = df.iloc[2].dropna().values.tolist()[1:]
-    method_row = df.iloc[3].dropna().values.tolist()[1:]
-        
-    # Find the indices of the start and end values, if they excist
-    
-    sample_end = df.index[df[0]== 'CHECKS'][0]-2
-    dup_ini = sample_end + 3
-    dup_end = df.index[df[0]== 'STANDARDS'][0]-2
-    
-    # Extract duplicates
-    df_d = df.loc[dup_ini:dup_end]
-    
-    # Add column names to df_d
-    columns = ["Sample"] + elements_row
-    df_d.columns = columns
-    
-    # Convert to long format
-    df_long = pd.melt(df_d, id_vars=["Sample"], var_name="Element", value_name="Value")
-    
-    # Add metadata to the long format
-    df_long["Unit"] = df_long["Element"].map(dict(zip(elements_row, units_row)))
-    df_long["Detection_Limit"] = df_long["Element"].map(dict(zip(elements_row, detection_row)))
-    df_long["Method"] = df_long["Element"].map(dict(zip(elements_row, method_row)))
-    
-    # Add a column with batch name
-    df_long.insert(0,'Type','dup')
-    
-    return (df_long)
     
 
 def duplicates_px(df_all, dup_list):
@@ -348,7 +313,7 @@ def plot_list(df_std, batch_std, element_groups):
 
         # Adding labels and title
         fig.update_layout(
-            title=f"Line Plot with Shaded Mean ± Std - Sample {sample}",
+            title=f"Sample {sample}",
             xaxis_title="Element",
             yaxis_title="Value",
             template="plotly",
@@ -365,6 +330,8 @@ def plot_list(df_std, batch_std, element_groups):
     return plots
 
 def NTGS_report(df_std):
+    # Delete nan
+    df_std = df_std.dropna()
     # Create a new column 'test' based on the condition Value >= min and Value <= max
     df_std['test'] = (df_std['Value'] >= df_std['min']) & (df_std['Value'] <= df_std['max'])
     
@@ -375,7 +342,7 @@ def NTGS_report(df_std):
         st.write('These elements are outside the expected range, please check.')
 
         # Show a subset of the DataFrame with relevant columns only if any 'test' is False
-        df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'mean', 'std', 'min', 'max']]
+        df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'min', 'max', 'test']]
         st.write(df_subset)
 
     
