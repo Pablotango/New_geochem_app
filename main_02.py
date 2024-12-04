@@ -80,15 +80,16 @@ def wide_long_clean_all(df0):
         if sample_type == 'std':
             df_long = df_long[df_long['Sample'].str.contains(r'DW06LMG005|AS08JAW004|AS08JAW006', na=False)].dropna(axis=1, how='all')
         
-        # Convert 'Value' and 'Detection_Limit' columns to numeric
-        df_long["Value"] = pd.to_numeric(df_long["Value"], errors='coerce')
-        df_long["Detection_Limit"] = pd.to_numeric(df_long["Detection_Limit"], errors='coerce')
         
         # Append the current DataFrame to the list
         df_list.append(df_long)
     
     # Concatenate all DataFrames in the list into one DataFrame
     df_all = pd.concat(df_list, ignore_index=True)
+    
+    # Convert 'Value' and 'Detection_Limit' columns to numeric
+    df_all["Value"] = pd.to_numeric(df_all["Value"], errors='coerce')
+    df_all["Detection_Limit"] = pd.to_numeric(df_all["Detection_Limit"], errors='coerce')
     
     return df_all
 
@@ -210,43 +211,6 @@ def duplicates_px(df_all, dup_list):
 
     return plots, report_df
 
-def wide_long_clean_std (df0):
-    
-    df = df0
-    # Extract metadata
-    elements_row = df.iloc[0].dropna().values.tolist()[1:]
-    units_row = df.iloc[1].dropna().values.tolist()[1:]
-    detection_row = df.iloc[2].dropna().values.tolist()[1:]
-    method_row = df.iloc[3].dropna().values.tolist()[1:]
-        
-    # Find the indices of the start and end values, if they excist
-    sample_ini = df.index[df[0]== 'SAMPLE NUMBERS'][0]+1
-    sample_end = df.index[df[0]== 'CHECKS'][0]-2
-    
-    # Extract samples
-    df_s = df.loc[sample_ini:sample_end]
-    
-    # Add column names to df_s
-    columns = ["Sample"] + elements_row
-    df_s.columns = columns 
-    
-    # Convert to long format
-    df_long = pd.melt(df_s, id_vars=["Sample"], var_name="Element", value_name="Value")
-    
-    # Add metadata to the long format
-    df_long["Unit"] = df_long["Element"].map(dict(zip(elements_row, units_row)))
-    df_long["Detection_Limit"] = df_long["Element"].map(dict(zip(elements_row, detection_row)))
-    df_long["Method"] = df_long["Element"].map(dict(zip(elements_row, method_row)))
-    
-    # Add a column with batch name
-    df_long.insert(0,'Type','std')
-    
-    # Extract Standards
-
-    df_long = df_long[df_long['Sample'].str.contains(r'DW06LMG005|AS08JAW004|AS08JAW006', na=False)].dropna(axis=1, how='all')
-    
-    return (df_long)
-
 
 def wide_long_clean_blk (df0):
     # This function takes a raw Intertek csv file and returns it in clean and in long format
@@ -304,6 +268,7 @@ def report_blk (df_blk):
     return df_blk
 
 
+
 def plot_list(df_std, batch_std, element_groups):
     plots = []  # List to store Plotly figures
     
@@ -320,6 +285,16 @@ def plot_list(df_std, batch_std, element_groups):
         
         # Create a Plotly figure
         fig = go.Figure()
+        
+        # Main line for 'Mean'
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["mean"], 
+            mode='lines+markers', 
+            name='Expected mean', 
+            line=dict(color='red', width=2),
+            marker=dict(symbol='circle')
+        ))
 
         # Main line for 'Value'
         fig.add_trace(go.Scatter(
@@ -327,7 +302,7 @@ def plot_list(df_std, batch_std, element_groups):
             y=df["Value"], 
             mode='lines+markers', 
             name='Value', 
-            line=dict(color='blue', width=2),
+            line=dict(color='orange', width=2),
             marker=dict(symbol='circle')
         ))
 
@@ -337,7 +312,8 @@ def plot_list(df_std, batch_std, element_groups):
             y=df["min"], 
             fill=None, 
             mode='lines', 
-            line=dict(color='blue', dash='dot'),
+            line=dict(color='rgba(0,0,0,0)'), # Fully transparent line
+            name='Expected Min value',
             showlegend=False
         ))
         fig.add_trace(go.Scatter(
@@ -345,30 +321,62 @@ def plot_list(df_std, batch_std, element_groups):
             y=df["max"], 
             fill='tonexty', 
             mode='lines', 
-            line=dict(color='blue', dash='dot'),
-            name='Min-max value',
+            line=dict(color='rgba(0,0,0,0)'),  # Fully transparent line
+            name='Expected Max-Min range',
             fillcolor='rgba(0, 0, 255, 0.2)'
+        ))
+
+        # Shaded region for mean ± std (standard deviation)
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["mean"] + df["std"], 
+            fill=None, 
+            mode='lines', 
+            line=dict(color='rgba(0,0,0,0)'),  # Transparent line
+            name='Mean + Std',
+            showlegend=False
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["Element"], 
+            y=df["mean"] - df["std"], 
+            fill='tonexty', 
+            mode='lines', 
+            line=dict(color='rgba(0,0,0,0)'),  # Transparent line
+            name='1 std',
+            fillcolor='rgba(255, 0, 0, 0.2)'  # Shaded region color (light red)
         ))
 
         # Adding labels and title
         fig.update_layout(
-            title=f"Line Plot with Shaded Min and Max - Sample {sample}",
+            title=f"Line Plot with Shaded Mean ± Std - Sample {sample}",
             xaxis_title="Element",
             yaxis_title="Value",
             template="plotly",
             showlegend=True,
             xaxis=dict(tickangle=45),
+            #yaxis=dict(type='log'),  # Set the y-axis to log scale if needed
             plot_bgcolor='white'
         )
         
         # Append the figure to the list
         plots.append(fig)
-        
 
     # Return all the figures as a list if needed for later
     return plots
 
+def NTGS_report(df_std):
+    # Create a new column 'test' based on the condition Value >= min and Value <= max
+    df_std['test'] = (df_std['Value'] >= df_std['min']) & (df_std['Value'] <= df_std['max'])
+    
+    # Check if all values in 'test' are True
+    if df_std['test'].all():
+        st.write('All values are within the expected range.')
+    else:
+        st.write('These elements are outside the expected range, please check.')
 
+        # Show a subset of the DataFrame with relevant columns only if any 'test' is False
+        df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'mean', 'std', 'min', 'max']]
+        st.write(df_subset)
 
     
 NTGS_std_list = ['AS08JAW004','AS08JAW006', 'DW06LMG005']
@@ -379,12 +387,7 @@ stats_dict = {'index': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 
 stats = pd.DataFrame(stats_dict)
 
-oxides = ['BaO', 'CaO', 'Cr2O3','FeO', 'Fe2O3', 'K2O', 'MgO', 'MnO', 'Na2O', 'P2O5', 'SiO2' ]
-REE = ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
-all_elements = ['Au', 'Ag', 'Al2O3', 'As', 'Ba', 'Be', 'Bi', 'CaO', 'Cd', 'Ce', 'Co', 'Cr', 'Cs', 'Cu', 'Dy', 'Er', 'Eu', 'F', 'Fe2O3', 'Ga', 'Gd', 'Ge', 'Hf', 'Ho', 'In', 'K2O', 'La', 'Lu', 'MgO', 'MnO', 'Mo', 'Na2O', 'Nb', 'Nd', 'Ni', 'P2O5', 'Pb', 'Pd', 'Pr', 'Pt', 'Rb', 'Re', 'S', 'Sb', 'Sc', 'Se', 'SiO2', 'Sm', 'Sn', 'Sr', 'Ta', 'Tb', 'Te', 'Th', 'TiO2', 'Tl', 'Tm', 'U', 'V', 'W', 'Y', 'Yb', 'Zn', 'Zr', 'BaO', 'C', 'Cr2O3', 'FeO', 'SO3', 'Li']
-element_groups = [oxides, REE, all_elements]
-
-tab_titles = ["Data cleaning",
+tab_titles = ["Data entry",
               "NTGS Standards",
               "Duplicates",
               "Blanks"
@@ -416,34 +419,52 @@ with tabs[0]:
         du_list = list(df_d["Sample"].unique())
 
 with tabs[1]:
-    
-    st.title("NTGS standards")
+    st.title("NTGS Standards")
     
     if uploaded_file is not None:
+        # Filter standards and merge with stats
         df_std = df[df['Type'] == 'std']
         options = list(df_std['Sample'].unique())
         df_std = pd.merge(df_std, stats, on=['Sample', 'Element', 'Unit'], how='inner')
         batch_std = list(df_std['Sample'].unique())
         
         if not options:
-            st.write('Seems like there are no NTGS standards in this batch')
-        
+            st.write("Seems like there are no NTGS standards in this batch :(")
         else:
-            st.write('NTGS standards found:')
+            st.write("NTGS standards found:")
             st.write(options)
             
-            element_groups = st.multiselect('Choose some of the element groups', element_groups)
+            # Define the actual element groups
+            oxides = ['Al2O3','BaO', 'CaO', 'Cr2O3','FeO', 'Fe2O3', 'K2O', 'MgO', 'MnO', 'Na2O', 'P2O5', 'SiO2']
+            REE = ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu']
+            #all_elements = ['Au', 'Ag', 'Al2O3', 'As', 'Ba', 'Be', 'Bi', 'CaO', 'Cd', 'Ce', 'Co', 'Cr', 'Cs', 'Cu', 'Dy', 'Er', 'Eu', 'F', 'Fe2O3', 'Ga', 'Gd', 'Ge', 'Hf', 'Ho', 'In', 'K2O', 'La', 'Lu', 'MgO', 'MnO', 'Mo', 'Na2O', 'Nb', 'Nd', 'Ni', 'P2O5', 'Pb', 'Pd', 'Pr', 'Pt', 'Rb', 'Re', 'S', 'Sb', 'Sc', 'Se', 'SiO2', 'Sm', 'Sn', 'Sr', 'Ta', 'Tb', 'Te', 'Th', 'TiO2', 'Tl', 'Tm', 'U', 'V', 'W', 'Y', 'Yb', 'Zn', 'Zr', 'BaO', 'C', 'Cr2O3', 'FeO', 'SO3', 'Li']
             
-            st.write ('This is the data with the appended expected values')
+            # Create a list of the group names that will be shown in the radio button
+            element_groups_names = ["Oxides", "REE"]
             
-            st.write(df_std.head(10))
+            # Use st.radio to display the list of group names, not the full list
+            selected_group_name = st.radio("Select an element group:", element_groups_names, index=1)  # Default selection
             
-            if st.checkbox('Plot of selected element groups'):
-                plots = plot_list(df_std, batch_std, element_groups)
+            # Map the selected group name to the actual list of elements
+            if selected_group_name == "Oxides":
+                selected_group = oxides
+            elif selected_group_name == "REE":
+                selected_group = REE
+
+            # Check if element groups are selected
+            if selected_group:
+                plots = plot_list(df_std, batch_std, selected_group)
                 
                 for plot in plots:
-                    #st.pyplot(plot)  # Display each plot using st.pyplot()
-                    st.plotly_chart(plot)
+                    st.plotly_chart(plot)  # Display each plot using Plotly
+                # run report
+                NTGS_report(df_std)
+            else:
+                st.write("No element group selected.")
+            
+            
+
+
                 
 
 with tabs[2]:
