@@ -138,8 +138,6 @@ stats = all_NTGS_Standards_all.groupby(["Sample", "Element", "Unit"])["Value"].a
 # Reset the index for better readability (optional)
 stats.reset_index(inplace=True)
 
-# Reset the index for better readability (optional)
-stats.reset_index(inplace=True)
 
 # Display the statistics
 print(stats)
@@ -162,9 +160,10 @@ stats_dict = stats.to_dict(orient = 'list')
 print (stats_dict)
 
 
+
 # %% Get the new batch, make it long format and add a column of type (sample, std, dup)
 
-df = pd.read_csv ("C:/Pablo_offline/py/NTGS_geochem/checked/656_0_2411228.csv", header=None)
+df = pd.read_csv ("C:/Pablo_offline/py/NTGS_geochem/checked/656_0_2406085.csv", header=None)
 
 def wide_long_clean_all(df0):
     
@@ -216,15 +215,16 @@ def wide_long_clean_all(df0):
         if sample_type == 'std':
             df_long = df_long[df_long['Sample'].str.contains(r'DW06LMG005|AS08JAW004|AS08JAW006', na=False)].dropna(axis=1, how='all')
         
-        # Convert 'Value' and 'Detection_Limit' columns to numeric
-        df_long["Value"] = pd.to_numeric(df_long["Value"], errors='coerce')
-        df_long["Detection_Limit"] = pd.to_numeric(df_long["Detection_Limit"], errors='coerce')
         
         # Append the current DataFrame to the list
         df_list.append(df_long)
     
     # Concatenate all DataFrames in the list into one DataFrame
     df_all = pd.concat(df_list, ignore_index=True)
+    
+    # Convert 'Value' and 'Detection_Limit' columns to numeric
+    df_all["Value"] = pd.to_numeric(df_all["Value"], errors='coerce')
+    df_all["Detection_Limit"] = pd.to_numeric(df_all["Detection_Limit"], errors='coerce')
     
     return df_all
 
@@ -240,7 +240,27 @@ df_std = pd.merge(df_l_s, stats, on=['Sample', 'Element', 'Unit'], how='inner')
 
 batch_std = list(df_std['Sample'].unique())
 
-element_groups = [oxides, REE, all_elements]
+element_groups = [oxides, REE]
+
+# %%
+# Report NTGS Standards
+
+def NTGS_report(df_std):
+    # Create a new column 'test' based on the condition Value >= min and Value <= max
+    df_std['test'] = (df_std['Value'] >= df_std['min']) & (df_std['Value'] <= df_std['max'])
+    
+    # Check if all values in 'test' are True
+    if df_std['test'].all():
+        st.write('All values are within the expected range.')
+    else:
+        st.write('These elements are outside the expected range, please check.')
+
+        # Show a subset of the DataFrame with relevant columns only if any 'test' is False
+        df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'min', 'max', 'test']]
+        st.write(df_subset)
+    
+
+
 
 # %%
 # Plots
