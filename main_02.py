@@ -22,6 +22,15 @@ import plotly.graph_objs as go
 import pickle
 import requests
 from io import BytesIO
+import re
+import numpy as np
+
+import base64
+import streamlit as st
+from io import BytesIO
+from PIL import Image
+
+
 
 # Function to load CSV file and return a DataFrame
 
@@ -29,6 +38,7 @@ from io import BytesIO
 def load_data(file):
     df = pd.read_csv(file, header = None)
     return df
+
 
 def wide_long_clean_all(df0):
     
@@ -86,6 +96,9 @@ def wide_long_clean_all(df0):
     
     # Concatenate all DataFrames in the list into one DataFrame
     df_all = pd.concat(df_list, ignore_index=True)
+    
+    # Preprocess the 'Value' column to handle cases with < or >
+    df_all["Value"] = df_all["Value"].astype(str).str.extract(r'(\d+\.?\d*)')[0]
     
     # Convert 'Value' and 'Detection_Limit' columns to numeric
     df_all["Value"] = pd.to_numeric(df_all["Value"], errors='coerce')
@@ -345,6 +358,28 @@ def NTGS_report(df_std):
         df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'min', 'max', 'test']]
         st.write(df_subset)
 
+def Big_values(df_sample):
+    # Apply the clean_cell function to the "Value" column
+    df_sample["Value"] = df_sample["Value"].apply(clean_cell)
+    
+    # Ensure the "Value" column is numeric after cleaning
+    df_sample["Value"] = pd.to_numeric(df_sample["Value"], errors="coerce")
+    
+    # Check for values greater than 1000
+    if (df_sample["Value"] > 1000).any():
+        # Extract the unique elements where the values are greater than 1000
+        anomalous_elements = df_sample[df_sample["Value"] > 1000]["Element"].unique()
+        
+        # Display the list of anomalous elements (column names)
+        st.write("List of elements with values >1000:", anomalous_elements)
+        
+        # Return the DataFrame with anomalous values
+        df_anomalous = df_sample[df_sample["Value"] > 1000]
+        return df_anomalous
+    else:
+        st.write("There are no anomalous values in your dataset.")
+        return pd.DataFrame()  # Return an empty DataFrame if no anomalies are found
+ 
     
 NTGS_std_list = ['AS08JAW004','AS08JAW006', 'DW06LMG005']
 
@@ -357,7 +392,8 @@ stats = pd.DataFrame(stats_dict)
 tab_titles = ["Data entry",
               "NTGS Standards",
               "Duplicates",
-              "Blanks"
+              "Blanks",
+              "Check_anomaly"
               ]
 
 tabs = st.tabs(tab_titles)
@@ -432,9 +468,7 @@ with tabs[1]:
                 st.write("No element group selected.")
             
             
-
-
-                
+            
 
 with tabs[2]:
     st.title ("Duplicates")
@@ -470,4 +504,19 @@ with tabs[3]:
         report_blk = report_blk (df_blk)
         st.dataframe (report_blk)
 
+with tabs[4]:
+    st.subheader("Anomalies")
     
+    st.write ('The following elements returned values > 1000 (ppm or ppb)')
+    
+    df_high = df[(df['Type'] == 'sample') & (df['Value'] > 1000)]
+    elements_high = df_high['Element'].unique().tolist()
+    st.write (elements_high)
+
+    st.write (df_high)
+    
+    image_url = "https://raw.githubusercontent.com/Pablotango/New_geochem_app/main/Capture.JPG"
+    
+    st.image(image_url, caption = "Image from Github", use_column_width=False)
+    
+
