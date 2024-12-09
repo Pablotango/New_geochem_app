@@ -3,3 +3,7 @@ pandas
 streamlit
 matplotlib
 pickle
+base64
+plotly
+io
+BytesIO
