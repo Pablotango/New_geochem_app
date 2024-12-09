@@ -1,9 +1,5 @@
-altair
 pandas
 streamlit
-matplotlib
-pickle
 base64
-plotly
-io
-numpy
+plotly.express
+plotly.graph_objs
