@@ -6,5 +6,4 @@ pickle
 base64
 plotly
 io
-BytesIO
 numpy
