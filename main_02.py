@@ -5,26 +5,13 @@ import streamlit as st
 st.set_page_config(layout="centered")
 
 import pandas as pd
-import matplotlib.pyplot as plt
 import base64  # Import the base64 module
-import seaborn as sns
 import plotly.express as px
 import plotly.graph_objs as go
-import pickle
-import requests
-from io import BytesIO
-import re
-import numpy as np
-
-import base64
 import streamlit as st
-from io import BytesIO
-from PIL import Image
-
 
 
 # Function to load CSV file and return a DataFrame
-
 
 def load_data(file):
     df = pd.read_csv(file, header = None)
@@ -499,7 +486,6 @@ with tabs[1]:
 
 with tabs[2]:
     
-    
     if uploaded_file is not None:
         dup_list = st.multiselect('Select duplicates', du_list)
     
@@ -523,15 +509,17 @@ with tabs[2]:
 
 with tabs[3]:
     st.subheader ("Blanks")
-    
-    if st.checkbox('Show me the blanks and report'):
+    if uploaded_file is not None:
         
-        df_blk = wide_long_clean_blk(df0)
-        report_blk = report_blk (df_blk)
-        st.dataframe (report_blk)
+        if st.checkbox('Show me the blanks and report'):
+            
+            df_blk = wide_long_clean_blk(df0)
+            report_blk = report_blk (df_blk)
+            st.dataframe (report_blk)
 
 with tabs[4]:
     st.subheader("Anomalies")
+    
     if uploaded_file is not None:
         st.write ('The following elements returned values > 1000 (ppm or ppb)')
         
@@ -550,33 +538,34 @@ with tabs[4]:
 with tabs[5]:
     
     st.subheader ("Compare against average abundance")
-    
-    df_sample = df[df['Type'] == 'sample']
-    
     if uploaded_file is not None:
-        st.write ('Compare your results with the following standards:') 
         
-        # Options for element groups
-        df_upper_dict = {'Element': ['Na', 'Al', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Cs', 'Ba', 'La', 'Ce', 'Nd', 'Sm', 'Eu', 'Tb', 'Yb', 'Lu', 'Hf', 'Pb', 'Th', 'U'], 'Value': [28200.0, 84700.0, 27400.0, 25000.0, 10.0, 3600.0, 60.0, 124.5, 600.0, 35000.0, 10.0, 20.0, 110.0, 350.0, 22.0, 240.0, 25.0, 3.7, 700.0, 30.0, 64.0, 26.0, 4.5, 0.88, 0.64, 2.2, 0.32, 5.8, 15.0, 10.5, 2.5], 'Unit': ['ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm']}
-        df_upper_REE_dict = {'Element': ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Y'], 'Value': [30.0, 64.0, 7.1, 26.0, 4.5, 0.88, 3.8, 0.64, 3.5, 0.8, 2.3, 0.33, 2.2, 0.32, 22.0], 'Unit': ['ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm']}
+        df_sample = df[df['Type'] == 'sample']
         
-        # Create a list of the group names that will be shown in the radio button
-        element_groups_names = ["Upper crustal", "Upper crustal REE"]
-        
-        # Use st.radio to display the list of group names
-        option = st.radio("Select an element group:", element_groups_names, index=1)
-        
-        if option == 'Upper crustal':
-            option = df_upper_dict
-        elif option == 'Upper crustal REE':
-            option = df_upper_REE_dict
-        
-        # Select samples
-        sample_list = st.multiselect('Select Samples', options=df_sample['Sample'].unique())
-        
-        # Plotting
-        if sample_list:
-            plot_average(df_sample, sample_list, option)
+        if uploaded_file is not None:
+            st.write ('Compare your results with the following standards:') 
+            
+            # Options for element groups
+            df_upper_dict = {'Element': ['Na', 'Al', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Cs', 'Ba', 'La', 'Ce', 'Nd', 'Sm', 'Eu', 'Tb', 'Yb', 'Lu', 'Hf', 'Pb', 'Th', 'U'], 'Value': [28200.0, 84700.0, 27400.0, 25000.0, 10.0, 3600.0, 60.0, 124.5, 600.0, 35000.0, 10.0, 20.0, 110.0, 350.0, 22.0, 240.0, 25.0, 3.7, 700.0, 30.0, 64.0, 26.0, 4.5, 0.88, 0.64, 2.2, 0.32, 5.8, 15.0, 10.5, 2.5], 'Unit': ['ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm']}
+            df_upper_REE_dict = {'Element': ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Y'], 'Value': [30.0, 64.0, 7.1, 26.0, 4.5, 0.88, 3.8, 0.64, 3.5, 0.8, 2.3, 0.33, 2.2, 0.32, 22.0], 'Unit': ['ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm', 'ppm']}
+            
+            # Create a list of the group names that will be shown in the radio button
+            element_groups_names = ["Upper crustal", "Upper crustal REE"]
+            
+            # Use st.radio to display the list of group names
+            option = st.radio("Select an element group:", element_groups_names, index=1)
+            
+            if option == 'Upper crustal':
+                option = df_upper_dict
+            elif option == 'Upper crustal REE':
+                option = df_upper_REE_dict
+            
+            # Select samples
+            sample_list = st.multiselect('Select Samples', options=df_sample['Sample'].unique())
+            
+            # Plotting
+            if sample_list:
+                plot_average(df_sample, sample_list, option)
         
         
         
