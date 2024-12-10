@@ -537,7 +537,7 @@ with tabs[4]:
     
 with tabs[5]:
     
-    st.subheader ("Compare against average abundance")
+    st.subheader ("Compare against average abundance (Taylor and McLenan, 1981)")
     if uploaded_file is not None:
         
         df_sample = df[df['Type'] == 'sample']
