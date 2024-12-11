@@ -328,7 +328,7 @@ def NTGS_report(df_std):
     
     # Check if all values in 'test' are True
     if df_std['test'].all():
-        st.write('### All values are within the expected range :)')
+        st.success('All values are within the expected range')
     else:
         st.write('These elements are outside the expected range, please check.')
 
@@ -415,11 +415,11 @@ def totals(df):
         max_value = df_total['Value'].max()
         
         # Display the min and max values
-        st.write(f"Minimum Total on this batch:   {min_value} %")
-        st.write(f"Maximum Total on this batch:   {max_value} %")
+        st.write(f"Range of Total values on this batch:   {min_value}— {max_value} %")
+        
         
         # Get user-defined min and max values for the range
-        st.write ('Definne your range:')
+        st.write ('Define your range:')
         min_range = st.number_input("Enter your minimum value", value=99.0)
         max_range = st.number_input("Enter your maximum value", value=100.1)
 
@@ -449,6 +449,72 @@ def totals(df):
         st.error(f"An unexpected error occurred: {e}")
         return None
 
+def LOI(df):
+    """
+    Analyze the min and max values of 'Total' in the DataFrame.
+    Check if any values are outside the user-defined range and display appropriate messages in a Streamlit app.
+
+    Parameters:
+    - df (pd.DataFrame): The input DataFrame, which must include 'Element' and 'Value' columns.
+
+    Returns:
+    - dict: A dictionary containing the min and max values for 'Total', or None if no rows are found.
+    """
+    try:
+        # Check if 'Total' exists in the 'Element' column
+        if 'LOI' not in df['Element'].values:
+            st.error("The DataFrame does not contain 'LOI' values in the 'Element' column.")
+            return None
+        
+        # Filter rows where 'Element' == 'LOI'
+        df_loi = df[df['Element'] == 'LOI']
+        
+        if df_loi.empty:
+            st.warning("No rows found where 'Element' equals 'LOI'.")
+            return None
+
+
+        # Calculate min and max values
+        min_value_loi = df_loi['Value'].min()
+        max_value_loi = df_loi['Value'].max()
+        
+        # Display the min and max values
+        st.write(f"Range of LOI values on this batch:   {min_value_loi}— {max_value_loi} %")
+        
+        
+        # Get user-defined min value
+        st.write ('Define your minimum value (LOI detection limit is typically 0.01 %):')
+        min_range_loi = st.number_input("Enter your minimum value", value=1, key="min_range_input")
+        
+
+        # Check if values are within the user-defined range
+        out_of_range_loi = df_loi[(df_loi['Value'] > min_range_loi)]
+        
+        
+        if out_of_range_loi.empty:
+            st.success(f"There are no values larger than your defined minimum: {min_range_loi}.")
+        else:
+            st.warning("These values are larger than your defined minimum:")
+            st.dataframe(out_of_range_loi)
+
+        # Return the min and max values
+        return {
+            "min_value_loi": min_value_loi,
+            "max_value_loi": max_value_loi
+        }
+    
+    except KeyError as e:
+        st.error(f"KeyError: {e}")
+        return None
+    except ValueError as e:
+        st.error(f"ValueError: {e}")
+        return None
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+        return None
+
+
+
 
 NTGS_std_list = ['AS08JAW004','AS08JAW006', 'DW06LMG005']
 
@@ -464,7 +530,7 @@ tab_titles = ["Data entry",
               "NTGS Standards",
               "Duplicates",
               "Blanks",
-              "Total",
+              "Total - LOI",
               "Check_anomaly",
               "Compare against reference"
               ]
@@ -510,7 +576,7 @@ with tabs[1]:
         batch_std = list(df_std['Sample'].unique())
         
         if not options:
-            st.write("Seems like there are no NTGS standards in this batch :(")
+            st.warning("There are no NTGS standards in this batch")
         else:
             st.subheader("NTGS standards found:")
             st.write(options)
@@ -585,10 +651,13 @@ with tabs[4]:
     if uploaded_file is not None:
         st.subheader ("Total (%)")
         totals(df_s)
+        st.subheader ("Loss on Ignition — LOI (%)")
+        LOI(df_s)
         
         
 with tabs[5]:
     st.subheader("Anomalies")
+    
     
     if uploaded_file is not None:
         st.write ('The following elements returned values > 1000 (ppm or ppb)')
@@ -596,7 +665,9 @@ with tabs[5]:
         df_high = df[
             (df['Type'] == 'sample') &
             (df['Value'] > 1000) & 
-            (df['Element'] != 'WTTOT')
+            (df['Element'] != 'WTTOT') &
+            (df['Element'] != 'Ba') &
+            (~df['Sample'].isin(['DW06LMG005', 'AS08JAW004', 'AS08JAW006']))
             ] # exclude WTTOT values
         elements_high = df_high['Element'].unique().tolist()
         st.write (elements_high)
@@ -607,7 +678,7 @@ with tabs[5]:
         
             st.image(image_url, caption = "Image from Github", use_column_width=False)
         else:
-            st.subheader ("There are no anomalous values")
+            st.success ("There are no anomalous values within your samples")
     
 with tabs[6]:
     
