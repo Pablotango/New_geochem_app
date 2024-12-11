@@ -385,8 +385,71 @@ def plot_average(df_all, sample_list, option):
     # Show the plot in Streamlit
     st.plotly_chart(fig)
     
+def totals(df):
+    """
+    Analyze the min and max values of 'Total' in the DataFrame.
+    Check if any values are outside the user-defined range and display appropriate messages in a Streamlit app.
 
+    Parameters:
+    - df (pd.DataFrame): The input DataFrame, which must include 'Element' and 'Value' columns.
+
+    Returns:
+    - dict: A dictionary containing the min and max values for 'Total', or None if no rows are found.
+    """
+    try:
+        # Check if 'Total' exists in the 'Element' column
+        if 'Total' not in df['Element'].values:
+            st.error("The DataFrame does not contain 'Total' values in the 'Element' column.")
+            return None
+        
+        # Filter rows where 'Element' == 'Total'
+        df_total = df[df['Element'] == 'Total']
+        
+        if df_total.empty:
+            st.warning("No rows found where 'Element' equals 'Total'.")
+            return None
+
+
+        # Calculate min and max values
+        min_value = df_total['Value'].min()
+        max_value = df_total['Value'].max()
+        
+        # Display the min and max values
+        st.write(f"Minimum Total on this batch:   {min_value} %")
+        st.write(f"Maximum Total on this batch:   {max_value} %")
+        
+        # Get user-defined min and max values for the range
+        st.write ('Definne your range:')
+        min_range = st.number_input("Enter your minimum value", value=99.0)
+        max_range = st.number_input("Enter your maximum value", value=100.1)
+
+        # Check if values are within the user-defined range
+        out_of_range = df_total[(df_total['Value'] < min_range) | (df_total['Value'] > max_range)]
+        
+        
+        if out_of_range.empty:
+            st.success(f"All good: All values are within the range {min_range} to {max_range}.")
+        else:
+            st.warning("These values are outside the defined range:")
+            st.dataframe(out_of_range)
+
+        # Return the min and max values
+        return {
+            "min_value": min_value,
+            "max_value": max_value
+        }
     
+    except KeyError as e:
+        st.error(f"KeyError: {e}")
+        return None
+    except ValueError as e:
+        st.error(f"ValueError: {e}")
+        return None
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+        return None
+
+
 NTGS_std_list = ['AS08JAW004','AS08JAW006', 'DW06LMG005']
 
 st.title("NTGS - Whole-rock geochem QAQC")
@@ -401,6 +464,7 @@ tab_titles = ["Data entry",
               "NTGS Standards",
               "Duplicates",
               "Blanks",
+              "Total",
               "Check_anomaly",
               "Compare against reference"
               ]
@@ -518,12 +582,22 @@ with tabs[3]:
             st.dataframe (report_blk)
 
 with tabs[4]:
+    if uploaded_file is not None:
+        st.subheader ("Total (%)")
+        totals(df_s)
+        
+        
+with tabs[5]:
     st.subheader("Anomalies")
     
     if uploaded_file is not None:
         st.write ('The following elements returned values > 1000 (ppm or ppb)')
         
-        df_high = df[(df['Type'] == 'sample') & (df['Value'] > 1000)]
+        df_high = df[
+            (df['Type'] == 'sample') &
+            (df['Value'] > 1000) & 
+            (df['Element'] != 'WTTOT')
+            ] # exclude WTTOT values
         elements_high = df_high['Element'].unique().tolist()
         st.write (elements_high)
     
@@ -535,7 +609,7 @@ with tabs[4]:
         else:
             st.subheader ("There are no anomalous values")
     
-with tabs[5]:
+with tabs[6]:
     
     st.subheader ("Compare against average abundance (Taylor and McLenan, 1981)")
     if uploaded_file is not None:
