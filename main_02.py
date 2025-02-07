@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Feb  7 16:18:47 2025
+
+@author: pfari
+"""
+
 
 import streamlit as st
 
@@ -449,6 +456,50 @@ def totals(df):
         st.error(f"An unexpected error occurred: {e}")
         return None
 
+def totals_rep(df):
+    """
+    Analyze the min and max values of 'Total' in the DataFrame.
+    Check if any values are outside the user-defined range and display appropriate messages in a Streamlit app.
+
+    Parameters:
+    - df (pd.DataFrame): The input DataFrame, which must include 'Element' and 'Value' columns.
+
+    Returns:
+    - dict: A dictionary containing the min and max values for 'Total', or None if no rows are found.
+    """
+    try:
+        # Check if 'Total' exists in the 'Element' column
+        if 'Total' not in df['Element'].values:
+            st.error("The DataFrame does not contain 'Total' values in the 'Element' column.")
+            return None
+        
+        # Filter rows where 'Element' == 'Total'
+        df_total = df[df['Element'] == 'Total']
+        
+        if df_total.empty:
+            st.warning("No rows found where 'Element' equals 'Total'.")
+            return None
+
+
+        # Calculate min and max values
+        min_value = df_total['Value'].min()
+        max_value = df_total['Value'].max()
+        
+        # Display the min and max values
+        st.write(f"##### Range of Total values on this batch:   {min_value}— {max_value} %")
+        
+    except KeyError as e:
+        st.error(f"KeyError: {e}")
+        return None
+    except ValueError as e:
+        st.error(f"ValueError: {e}")
+        return None
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+        return None
+    
+
+
 def LOI(df):
     """
     Analyze the min and max values of 'Total' in the DataFrame.
@@ -532,7 +583,8 @@ tab_titles = ["Data entry",
               "Blanks",
               "Total - LOI",
               "Check_anomaly",
-              "Compare against reference"
+              "Compare against reference",
+              "Report"
               ]
 
 tabs = st.tabs(tab_titles)
@@ -548,7 +600,8 @@ with tabs[0]:
         df0 = load_data(uploaded_file)
         
         new_batch = uploaded_file.name
-        st.write(f'### Batch: {new_batch}')
+        batch_name = new_batch.replace(".csv", "") #removes .csv extension
+        st.write(f'### Batch: {batch_name}')
         
         st.write(df0)
         
@@ -561,8 +614,11 @@ with tabs[0]:
         du_list = list(df_d["Sample"].unique())
         df_s = df[df['Type'] == 'sample']
         count = len(df_s['Sample'].unique())
+        exclude_columns = ['Total', 'ELEMENTS', 'LOI']
+        elem_count = len([col for col in df0.columns if col not in exclude_columns])
         
         st.header(f'Number of samples, inlcuding NTGS standards: {count} ')
+        st.header(f'Number of elements on this batch : {elem_count} ')
         
 
 with tabs[1]:
@@ -667,6 +723,7 @@ with tabs[5]:
             (df['Value'] > 1000) & 
             (df['Element'] != 'WTTOT') &
             (df['Element'] != 'Ba') &
+            (df['Element'] != 'F')&
             (~df['Sample'].isin(['DW06LMG005', 'AS08JAW004', 'AS08JAW006']))
             ] # exclude WTTOT values
         elements_high = df_high['Element'].unique().tolist()
@@ -712,6 +769,52 @@ with tabs[6]:
             if sample_list:
                 plot_average(df_sample, sample_list, option)
         
+        
+with tabs[7]:
+    
+    st.write('<p style="color:orange;font-size:28px";>Report</p>', unsafe_allow_html=True)
+    if uploaded_file is not None:
+        
+        st.write('#### Batch:') 
+        st.write(f'##### {batch_name}')
+        
+        
+        st.write('#### Number of samples:')
+        st.write(f'##### {count}')
+        
+        st.write(f'#### Number of elements: {elem_count} ')
+        
+        st.write(f'#### NTGS Standards: {options}')
+        NTGS_report(df_std)
+        
+        st.write ('#### Duplicates report:')
+        st.dataframe(report_df)
+        
+        st.write ('#### Blanks report:')
+        st.dataframe (report_blk)
+        
+        st.write ('#### Total (%) range:')
+        totals_rep(df_s)
+        
+        st.write('#### Anomalies:')
+        st.write (elements_high)
+        df_high
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    
+    
+    
         
         
     
