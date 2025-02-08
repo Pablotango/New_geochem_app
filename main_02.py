@@ -583,8 +583,7 @@ tab_titles = ["Data entry",
               "Blanks",
               "Total - LOI",
               "Check_anomaly",
-              "Compare against reference",
-              "Report"
+              "Compare against reference"
               ]
 
 tabs = st.tabs(tab_titles)
@@ -769,37 +768,7 @@ with tabs[6]:
             if sample_list:
                 plot_average(df_sample, sample_list, option)
         
-        
-with tabs[7]:
-    
-    st.write('<p style="color:orange;font-size:28px";>Report</p>', unsafe_allow_html=True)
-    if uploaded_file is not None:
-        
-        st.write('#### Batch:') 
-        st.write(f'##### {batch_name}')
-        
-        
-        st.write('#### Number of samples:')
-        st.write(f'##### {count}')
-        
-        st.write(f'#### Number of elements: {elem_count} ')
-        
-        st.write(f'#### NTGS Standards: {options}')
-        NTGS_report(df_std)
-        
-        st.write ('#### Duplicates report:')
-        st.dataframe(report_df)
-        
-        st.write ('#### Blanks report:')
-        st.dataframe (report_blk)
-        
-        st.write ('#### Total (%) range:')
-        totals_rep(df_s)
-        
-        st.write('#### Anomalies:')
-        st.write (elements_high)
-        df_high
-        
+
         
         
         
