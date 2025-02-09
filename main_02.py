@@ -9,7 +9,7 @@ Created on Fri Feb  7 16:18:47 2025
 import streamlit as st
 
 # Set the page configuration for a wide layout as the very first command
-st.set_page_config(layout="centered")
+st.set_page_config(layout="wide")
 
 import pandas as pd
 import base64  # Import the base64 module
@@ -232,10 +232,10 @@ def report_blk (df_blk):
 
 
 
-def plot_list(df_std, batch_std, element_groups):
+def plot_list(df_std, options, element_groups):
     plots = []  # List to store Plotly figures
     
-    for sample in batch_std:
+    for sample in options:
         # Select only sample i
         df = df_std.loc[df_std["Sample"] == sample]
         # Only selected elements
@@ -335,9 +335,9 @@ def NTGS_report(df_std):
     
     # Check if all values in 'test' are True
     if df_std['test'].all():
-        st.success('All values are within the expected range')
+        st.success('All values in the NTGS standards are within the expected range')
     else:
-        st.write('These elements are outside the expected range, please check.')
+        st.write('These elements in the NTGS standards are outside the expected range, please check.')
 
         # Show a subset of the DataFrame with relevant columns only if any 'test' is False
         df_subset = df_std[df_std['test'] == False][['Sample', 'Element', 'Value', 'Unit', 'Detection_Limit', 'min', 'max', 'test']]
@@ -486,7 +486,7 @@ def totals_rep(df):
         max_value = df_total['Value'].max()
         
         # Display the min and max values
-        st.write(f"##### Range of Total values on this batch:   {min_value}— {max_value} %")
+        st.write(f" Range of Total for all samples on this batch: {min_value}— {max_value} %")
         
     except KeyError as e:
         st.error(f"KeyError: {e}")
@@ -583,7 +583,8 @@ tab_titles = ["Data entry",
               "Blanks",
               "Total - LOI",
               "Check_anomaly",
-              "Compare against reference"
+              "Compare against reference",
+              "Report"
               ]
 
 tabs = st.tabs(tab_titles)
@@ -604,6 +605,7 @@ with tabs[0]:
         
         st.write(df0)
         
+        
         #st.title ("Data in long format")
         df = wide_long_clean_all(df0)
         
@@ -612,9 +614,12 @@ with tabs[0]:
         df_d = df[df['Type'] == 'dup']
         du_list = list(df_d["Sample"].unique())
         df_s = df[df['Type'] == 'sample']
+        
         count = len(df_s['Sample'].unique())
-        exclude_columns = ['Total', 'ELEMENTS', 'LOI']
-        elem_count = len([col for col in df0.columns if col not in exclude_columns])
+        
+        elem_col = df0.iloc[0].tolist()
+        exclude_columns = ['Total', 'ELEMENTS', 'LOI', 'WTTOT']
+        elem_count = len([elem for elem in elem_col if elem not in exclude_columns])
         
         st.header(f'Number of samples, inlcuding NTGS standards: {count} ')
         st.header(f'Number of elements on this batch : {elem_count} ')
@@ -626,10 +631,18 @@ with tabs[1]:
     if uploaded_file is not None:
         # Filter standards and merge with stats
         df_std = df[df['Type'] == 'std']
+        # Change the Sample names to match the list of standards
+        for sample in NTGS_std_list:
+            df_std.loc[df_std['Sample'].str.contains(sample), 'Sample'] = sample
+        
+        
+        
+        
         options = list(df_std['Sample'].unique())
         df_std = pd.merge(df_std, stats, on=['Sample', 'Element', 'Unit'], how='inner')
-        batch_std = list(df_std['Sample'].unique())
         
+        batch_std = list(df_std['Sample'].unique())
+
         if not options:
             st.warning("There are no NTGS standards in this batch")
         else:
@@ -658,7 +671,7 @@ with tabs[1]:
                 # run report
                 NTGS_report(df_std)
                 
-                plots = plot_list(df_std, batch_std, selected_group)
+                plots = plot_list(df_std, options, selected_group)
                 
                 for plot in plots:
                     st.plotly_chart(plot)  # Display each plot using Plotly
@@ -672,9 +685,15 @@ with tabs[1]:
 with tabs[2]:
     
     if uploaded_file is not None:
-        dup_list = st.multiselect('Select duplicates', du_list)
-    
-        if st.checkbox('Plot of selected duplicates and report table', key = 'dup_plots'):
+        #dup_list = st.multiselect('Select duplicates', du_list)
+        dup_list =  du_list
+        if dup_list:
+            st.write ("These samples are duplicates:")
+            st.write(dup_list)
+        else:
+            st.warning ("There are no duplicates in this batch")
+        
+        if dup_list:
             plots, report_df = duplicates_px(df, dup_list)  # Calling duplicates() to get plots
             st.header('Plots of Duplicate Analysis')
             st.subheader('You can zoom in to see results')
@@ -696,11 +715,14 @@ with tabs[3]:
     st.subheader ("Blanks")
     if uploaded_file is not None:
         
-        if st.checkbox('Show me the blanks and report'):
-            
-            df_blk = wide_long_clean_blk(df0)
+        df_blk = wide_long_clean_blk(df0)
+        
+        if not df_blk.empty:
+            st.warning ('The following elements yielded values over their detection limit')
             report_blk = report_blk (df_blk)
             st.dataframe (report_blk)
+            
+            
 
 with tabs[4]:
     if uploaded_file is not None:
@@ -715,7 +737,7 @@ with tabs[5]:
     
     
     if uploaded_file is not None:
-        st.write ('The following elements returned values > 1000 (ppm or ppb)')
+        
         
         df_high = df[
             (df['Type'] == 'sample') &
@@ -726,15 +748,17 @@ with tabs[5]:
             (~df['Sample'].isin(['DW06LMG005', 'AS08JAW004', 'AS08JAW006']))
             ] # exclude WTTOT values
         elements_high = df_high['Element'].unique().tolist()
-        st.write (elements_high)
-    
-        st.write (df_high)
         if elements_high:
-            image_url = "https://raw.githubusercontent.com/Pablotango/New_geochem_app/main/Capture.JPG"
+            st.success ('The following elements returned values > 1000 (ppm or ppb)')
+            st.write (elements_high)
         
-            st.image(image_url, caption = "Image from Github", use_column_width=False)
-        else:
-            st.success ("There are no anomalous values within your samples")
+            st.write (df_high)
+            if elements_high:
+                image_url = "https://raw.githubusercontent.com/Pablotango/New_geochem_app/main/Capture.JPG"
+            
+                st.image(image_url, caption = "Image from Github", use_column_width=False)
+            else:
+                st.success ("There are no anomalous values within your samples")
     
 with tabs[6]:
     
@@ -768,9 +792,47 @@ with tabs[6]:
             if sample_list:
                 plot_average(df_sample, sample_list, option)
         
+        
+with tabs[7]:
+    
+    st.write('<p style="color:orange;font-size:28px";>Report</p>', unsafe_allow_html=True)
+    if uploaded_file is not None:
+        
+        
+        report= {"Batch name": batch_name,
+                 "Sample No": count,
+                 "Number of elements analysed": elem_count,
+                 "NTGS Standards: ": options
+                 }
+        
+        st.json(report)
+        
+        if not options:
+             st.warning("There are no NTGS standards in this batch")
+        else:
+            st.write('<p style="color:orange;font-size:18px";>NTGS Standards</p>', unsafe_allow_html=True)
+            NTGS_report(df_std)
+            
+        st.write('<p style="color:orange;font-size:18px";>Duplicates</p>', unsafe_allow_html=True)
+        report_df
+        st.write('<p style="color:orange;font-size:18px";>Blanks</p>', unsafe_allow_html=True)
+        if not df_blk.empty:
+            st.warning ('The following elements yielded values over their detection limit')
+            report_blk
+        else:
+            st.warning ('There are no blanks in this batch')
+        st.write('<p style="color:orange;font-size:18px";>Total</p>', unsafe_allow_html=True)
+        totals_rep(df_s)
+        
+        st.write('<p style="color:orange;font-size:18px";>Anomalies</p>', unsafe_allow_html=True)
+        if elements_high:
+            st.success ('The following elements returned values > 1000 (ppm or ppb)')
+            st.write (elements_high)
+        
+            st.write (df_high)
+        else:
+            st.write('There are no anomalous values on this batch')
 
-        
-        
         
         
         
