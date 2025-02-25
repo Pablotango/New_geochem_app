@@ -132,23 +132,32 @@ def duplicates_px(df_all, dup_list):
         upper_threshold = (1 + error_threshold) * x
         lower_threshold = (1 - error_threshold) * x
 
+        
         # Create scatter plot
         fig = go.Figure()
-
-        # Original vs duplicate scatter
         fig.add_trace(go.Scatter(x=x, y=y, mode='markers', marker=dict(color='blue'), name='Duplicate vs Original'))
-
-        # 1:1 line
+    
+        # Add the element labels as text on the scatter points
+        fig.add_trace(go.Scatter(
+            x=x, 
+            y=y, 
+            mode='text', 
+            text=element_list,  # Set text as the element list
+            textposition='top center',  # Position the text above the points
+            showlegend=False  # Hide this trace from the legend
+        ))
+    
+        # Add the 1:1 line
         fig.add_trace(go.Scatter(x=x, y=x, mode='lines', line=dict(color='gray', dash='dash'), name='1:1 line'))
-
-        # ±15% threshold bands
+    
+        # Add the ±15% thresholds
         fig.add_trace(go.Scatter(x=x, y=upper_threshold, mode='lines', line=dict(color='lightgray', width=0), name='+15% Threshold'))
         fig.add_trace(go.Scatter(x=x, y=lower_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
-
+    
         # Points outside the threshold
         outside_threshold = (y > upper_threshold) | (y < lower_threshold)
         fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
-
+    
         # Layout adjustments
         fig.update_layout(
             title=f'Scatter Plot of Duplicate vs Original for {sample}',
@@ -158,14 +167,11 @@ def duplicates_px(df_all, dup_list):
             margin=dict(l=40, r=40, t=40, b=40),
             hovermode='closest'
         )
-
-        # Add element labels as tick texts
-        fig.update_xaxes(tickvals=x, ticktext=element_list)
-
+    
         # Generate report for outliers
         elements_outside = element_list[outside_threshold]
         report_data.append((sample, list(elements_outside)))
-
+    
         # Append figure to the list
         plots.append(fig)
 
