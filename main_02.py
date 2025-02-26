@@ -92,7 +92,6 @@ def wide_long_clean_all(df0):
     return df_all
 
     
-
 def duplicates_px(df_all, dup_list):
     """
     This function takes a clean df and a list of samples. 
@@ -118,6 +117,7 @@ def duplicates_px(df_all, dup_list):
         x = pd.to_numeric(df_sample['Value'], errors='coerce').reset_index(drop=True)
         y = pd.to_numeric(df_duplicate['Value'], errors='coerce').reset_index(drop=True)
         element_list = df_sample['Element'].reset_index(drop=True)
+        detection_limit = df_sample["Detection_Limit"].reset_index(drop=True)
 
         # Create a boolean mask for positive values
         mask = (x > 0) & (y > 0)
@@ -126,6 +126,8 @@ def duplicates_px(df_all, dup_list):
         x = x[mask].values
         y = y[mask].values
         element_list = element_list[mask].values
+        detection_limit = detection_limit[mask].values
+        
 
         # Define thresholds
         error_threshold = 0.15
@@ -137,6 +139,27 @@ def duplicates_px(df_all, dup_list):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=x, y=y, mode='markers', marker=dict(color='blue'), name='Duplicate vs Original'))
     
+        
+    
+        # Add the 1:1 line
+        fig.add_trace(go.Scatter(x=x, y=x, mode='lines', line=dict(color='gray', dash='dash'), name='1:1 line'))
+    
+        # Add the ±15% thresholds
+        fig.add_trace(go.Scatter(x=x, y=upper_threshold, mode='lines', line=dict(color='lightgray', width=0), name='+15% Threshold'))
+        fig.add_trace(go.Scatter(x=x, y=lower_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
+    
+        # Points outside the threshold plus error (detection limits)
+        outside_threshold = (y > upper_threshold) | (y < lower_threshold)
+        fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', 
+                                 marker=dict(color='red'), 
+                                 error_y=dict(
+                                     type='data',
+                                     symmetric=True,
+                                     array=detection_limit[outside_threshold],  # Detection limit as the error
+                                     visible=True
+                                 ),
+                                 name='Outside Threshold'))
+        
         # Add the element labels as text on the scatter points
         fig.add_trace(go.Scatter(
             x=x, 
@@ -146,17 +169,6 @@ def duplicates_px(df_all, dup_list):
             textposition='top center',  # Position the text above the points
             showlegend=False  # Hide this trace from the legend
         ))
-    
-        # Add the 1:1 line
-        fig.add_trace(go.Scatter(x=x, y=x, mode='lines', line=dict(color='gray', dash='dash'), name='1:1 line'))
-    
-        # Add the ±15% thresholds
-        fig.add_trace(go.Scatter(x=x, y=upper_threshold, mode='lines', line=dict(color='lightgray', width=0), name='+15% Threshold'))
-        fig.add_trace(go.Scatter(x=x, y=lower_threshold, mode='lines', line=dict(color='lightgray', width=0), fill='tonexty', showlegend=False))
-    
-        # Points outside the threshold
-        outside_threshold = (y > upper_threshold) | (y < lower_threshold)
-        fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
     
         # Layout adjustments
         fig.update_layout(
@@ -179,7 +191,6 @@ def duplicates_px(df_all, dup_list):
     report_df = pd.DataFrame(report_data, columns=['SampleID', 'Elements outside the ±15% threshold'])
 
     return plots, report_df
-
 
 def wide_long_clean_blk (df0):
     # This function takes a raw Intertek csv file and returns it in clean and in long format
