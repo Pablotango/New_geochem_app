@@ -133,16 +133,15 @@ def duplicates_px(df_all, dup_list):
         error_threshold = 0.15
         upper_threshold = (1 + error_threshold) * x
         lower_threshold = (1 - error_threshold) * x
-        
-        # Points outside the threshold
-        outside_threshold = (y > upper_threshold) | (y < lower_threshold)
-        fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
 
         
         # Create scatter plot
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=x, y=y, mode='markers', marker=dict(color='blue'), name='Duplicate vs Original'))
     
+        # Points outside the threshold
+        outside_threshold = (y > upper_threshold) | (y < lower_threshold)
+        fig.add_trace(go.Scatter(x=x[outside_threshold], y=y[outside_threshold], mode='markers', marker=dict(color='red'), name='Outside Threshold'))
         
     
         # Add the 1:1 line
